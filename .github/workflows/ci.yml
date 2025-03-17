@@ -18,52 +18,67 @@ jobs:
     runs-on: ubuntu-20.04
 
     steps:
-    - uses: actions/checkout@v2
-      
-    - name: Install apt-get packages
-      run: |
-        echo RESET grub-efi/install_devices | sudo debconf-communicate grub-pc
-        sudo ACCEPT_EULA=Y apt-get update
-        sudo ACCEPT_EULA=Y apt-get upgrade
-        sudo apt-get install wget git curl software-properties-common build-essential
-    
-    - name: Install Rust target for wasm
-      run: |
-        rustup target add wasm32-wasi
-        
-    - name: Install WasmEdge
-      run: |
-        VERSION=0.12.1
-        curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | sudo bash -s -- -e all --version=$VERSION -p /usr/local
-    
-    - name: sales_tax_rate
-      run: |
-        cd sales_tax_rate
-        cargo build --target wasm32-wasi --release
-        wasmedgec target/wasm32-wasi/release/sales_tax_rate_lookup.wasm sales_tax_rate_lookup.wasm
-        nohup wasmedge sales_tax_rate_lookup.wasm &
-        echo $! > sales_tax_rate.pid
+      - uses: actions/checkout@v2
 
-    - name: order_total
-      run: |
-        cd order_total
-        cargo build --target wasm32-wasi --release
-        wasmedgec target/wasm32-wasi/release/order_total.wasm order_total.wasm
-        nohup wasmedge --env "SALES_TAX_RATE_SERVICE=http://127.0.0.1:8001/find_rate" order_total.wasm &
-        echo $! > order_total.pid
+      - name: Install apt-get packages
+        run: |
+          echo RESET grub-efi/install_devices | sudo debconf-communicate grub-pc
+          sudo ACCEPT_EULA=Y apt-get update
+          sudo ACCEPT_EULA=Y apt-get upgrade
+          sudo apt-get install wget git curl software-properties-common build-essential
 
-    - name: test
-      run: |
-        sleep 15
-        resp=$(curl http://localhost:8002/compute -X POST -d @order.json)
-        echo "$resp"
-        if [[ $resp == *"21.65"* ]]; then
-          echo -e "Execution Success!"
-        else
-          echo -e "Execution Fail!"
-          exit 1
-        fi
-        kill -9 `cat sales_tax_rate/sales_tax_rate.pid`
-        rm sales_tax_rate/sales_tax_rate.pid
-        kill -9 `cat order_total/order_total.pid`
-        rm order_total/order_total.pid
+      - name: Install Rust target for wasm
+        run: |
+          rustup target add wasm32-wasip1
+
+      - name: Install WasmEdge
+        run: |
+          VERSION=0.12.1
+          curl -sSf https://raw.githubusercontent.com/WasmEdge/WasmEdge/master/utils/install.sh | sudo bash -s -- -e all --version=$VERSION -p /usr/local
+
+      - name: sales_tax_rate
+        run: |
+          cd sales_tax_rate
+          cargo build --target wasm32-wasip1 --release
+          wasmedgec target/wasm32-wasip1/release/sales_tax_rate_lookup.wasm sales_tax_rate_lookup.wasm
+          nohup wasmedge sales_tax_rate_lookup.wasm &
+          echo $! > sales_tax_rate.pid
+
+      - name: order_total
+        run: |
+          cd order_total
+          cargo build --target wasm32-wasip1 --release
+          wasmedgec target/wasm32-wasip1/release/order_total.wasm order_total.wasm
+          nohup wasmedge --env "SALES_TAX_RATE_SERVICE=http://127.0.0.1:8001/find_rate" order_total.wasm &
+          echo $! > order_total.pid
+
+      - name: test-valid-request
+        run: |
+          sleep 15
+          resp=$(curl http://localhost:8002/compute -X POST -d @valid-order.json)
+          echo "$resp"
+          if [[ $resp == *"21.65"* ]]; then
+            echo -e "Execution Success!"
+          else
+            echo -e "Execution Fail!"
+            exit 1
+          fi
+
+      - name: test-invalid-request
+        run: |
+          resp=$(curl http://localhost:8002/compute -X POST -d @invalid-order.json)
+          echo "$resp"
+          if [[ $resp == *"The zip code in the order does not have a corresponding sales tax rate."* ]]; then
+            echo -e "Execution Success!"
+          else
+            echo -e "Execution Fail!"
+            exit 1
+          fi
+
+      - name: clean-up
+        if: always()
+        run: |
+          kill -9 `cat sales_tax_rate/sales_tax_rate.pid`
+          rm sales_tax_rate/sales_tax_rate.pid
+          kill -9 `cat order_total/order_total.pid`
+          rm order_total/order_total.pid
