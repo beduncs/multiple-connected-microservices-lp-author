@@ -1,0 +1,27 @@
+GET http://127.0.0.1:8001/
+
+###
+
+# curl localhost:8001/get_rate -XPOST -d '78701'
+POST 127.0.0.1:8001/find_rate
+
+78701
+
+###
+
+
+# curl http://localhost:8002/compute -i -X POST -d '{"order_id":123, "product_id":321,"quantity":2,"subtotal":20.0,"shipping_address":"123 Main St, Anytown USA","shipping_zip":"78701","total":0.0}'
+POST http://localhost:8002/compute
+
+{"order_id":123, "product_id":321,"quantity":2,"subtotal":20.0,"shipping_address":"123 Main St, Anytown USA","shipping_zip":"78701","total":0.0}
+
+###
+
+# curl http://localhost:8002/compute -i -X POST -d '{"order_id":123, "product_id":321,"quantity":2,"subtotal":20.0,"shipping_address":"123 Main St, Anytown USA","shipping_zip":"78701","total":0.0}'
+POST http://localhost:8002/compute
+
+{"order_id":123, "product_id":321,"quantity":2,"subtotal":20.0,"shipping_address":"123 Main St, Anytown USA","shipping_zip":"1234","total":0.0}
+
+
+###
+
